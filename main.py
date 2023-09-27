@@ -94,6 +94,17 @@ def get_images_and_colours(colours) -> str:
     return formatted_info_images, formatted_info_hex
 
 
+def get_all_plans_for_version(call_plans):
+    response_list = []
+    for key, value in call_plans.items():
+        for plan_type in value:
+            for data_plan in plan_type['data_allowance']:
+                features_text = ','.join(feature['text'] for feature in data_plan['features'])
+                response_list.append((plan_type['name'], key, data_plan['name'], data_plan['monthly'],
+                                      data_plan['upfront'], data_plan['offerMonthly'], data_plan['offerUpfront'],
+                                      data_plan['recommended_text'], '', features_text, ''))
+    return response_list
+
 
 def get_all_mobiles():
     headers = {
@@ -115,35 +126,45 @@ def get_all_mobiles():
     mobiles_list = response.json()
     with open('/Users/kalicharanvemuru/PycharmProjects/EE-scraper/mobile-static.tsv', 'wt') as out_file:
         tsv_writer = csv.writer(out_file, delimiter='\t')
-        tsv_writer.writerow(['Brand', 'Mobile', 'Capacity', 'Sub-version', 'Description', 'Screen size', 'Camera',
-                             'Battery', 'Colours', 'Image URLs', 'Article Id', 'Availability', 'Technology', 'OS'])
-        for mobile in mobiles_list:
-            brand = mobile['brand']
-            handset = mobile['handset_name']
-            # colours = ''
-            # for colour in mobile['colours']:
-            #     colours += f'{colour["key"]}:{colour["value"]},'
-            technology = '4G'
-            for tech in mobile['network_types']:
-                if tech == '5G':
-                    technology = '5G'
-            mobile_details = curl_single_mobile(mobile['page_path'])
-            os = next((detail['value'] for detail in mobile_details['specifications'] if detail['label'] == 'Operating system'), '')
-            description = mobile_details['short_description']
-            size, camera, battery = get_cam_bat_size(mobile['page_path'])
-            image_urls, colours = get_images_and_colours(mobile_details['colours'])
-            capacities = []
-            availability = ''
-            for key, value in mobile_details['stock'].items():
-                capacities.append(key)
-                availability = next(iter(value.items()))[1]['status_text']
-            # first_item_1 = next(iter(mobile_details['stock'].items()))
-            # first_item_2 = next(iter(first_item_1.items()))
-            # availability = first_item_2['status_text']
-            for capacity in capacities:
-                tsv_writer.writerow(
-                    [brand, handset, capacity, f'{handset} {technology} {capacity}', description, size, camera,
-                     battery, colours, image_urls, '', availability, technology, os.lower()])
+        with open('/Users/kalicharanvemuru/PycharmProjects/EE-scraper/mobile-dynamic.tsv', 'wt') as dynamic_file:
+            tsv_writer_2 = csv.writer(dynamic_file, delimiter='\t')
+            tsv_writer.writerow(['Brand', 'Mobile', 'Capacity', 'Sub-version', 'Description', 'Screen size', 'Camera',
+                                 'Battery', 'Colours', 'Image URLs', 'Article Id', 'Availability', 'Technology', 'OS'])
+            tsv_writer_2.writerow(['Mobile', 'Plan Type', 'Plan Length', 'Data Allowance', 'MRC', 'Upfront','Offer MRC',
+                                   'Offer Upfront', 'Tag', 'Tariff Code', 'Features', 'OS'])
+            for mobile in mobiles_list:
+                brand = mobile['brand']
+                handset = mobile['handset_name']
+                # colours = ''
+                # for colour in mobile['colours']:
+                #     colours += f'{colour["key"]}:{colour["value"]},'
+                technology = '4G'
+                for tech in mobile['network_types']:
+                    if tech == '5G':
+                        technology = '5G'
+                mobile_details = curl_single_mobile(mobile['page_path'])
+                os = next((detail['value'] for detail in mobile_details['specifications'] if detail['label'] == 'Operating system'), '')
+                description = mobile_details['short_description']
+                size, camera, battery = get_cam_bat_size(mobile['page_path'])
+                image_urls, colours = get_images_and_colours(mobile_details['colours'])
+                capacities = []
+                availability = ''
+                for key, value in mobile_details['stock'].items():
+                    capacities.append(key)
+                    availability = next(iter(value.items()))[1]['status_text']
+                # first_item_1 = next(iter(mobile_details['stock'].items()))
+                # first_item_2 = next(iter(first_item_1.items()))
+                # availability = first_item_2['status_text']
+                for capacity in capacities:
+                    tsv_writer.writerow(
+                        [brand, handset, capacity, f'{handset} {technology} {capacity}', description, size, camera,
+                         battery, colours, image_urls, '', availability, technology, os.lower()])
+                    all_plans = get_all_plans_for_version(mobile_details['call_plans'][capacity])
+                    for plan in all_plans:
+                        tsv_writer_2.writerow([f'{handset} {technology} {capacity}', *plan])
+
+
+
 
 if __name__ == '__main__':
     get_all_mobiles()
